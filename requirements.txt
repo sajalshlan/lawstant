@@ -5,3 +5,4 @@ pdfplumber==0.11.0
 python_docx==1.1.0
 streamlit==1.34.0
 python-dotenv
+faiss-cpu==1.8.0.post1
