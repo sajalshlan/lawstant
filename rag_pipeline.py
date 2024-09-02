@@ -72,7 +72,7 @@ class RAGPipeline:
             predibase_api_key=api_token,
             predibase_sdk_version=None,
             adapter_version=1,
-            max_new_tokens=4000,
+            max_new_tokens=5000,
         )
 
     def save_file_with_timestamp(self, file, upload_folder: str) -> str:
