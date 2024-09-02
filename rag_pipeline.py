@@ -1,7 +1,7 @@
 import os
 import pdfplumber
 import docx
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Tuple
 from langchain_community.llms import Predibase
 from langchain_community.vectorstores import FAISS
 from langchain.chains import RetrievalQA
@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 import base64
 import requests
 from pdf2image import convert_from_path
+
 import datetime
 
 load_dotenv()
@@ -89,8 +90,20 @@ class RAGPipeline:
         with open(image_path, "rb") as image_file:
             return base64.b64encode(image_file.read()).decode('utf-8')
 
-    def analyze_single_image(self, image_path: str) -> Dict:
-        base64_image = self.image_to_base64(image_path)
+    def analyze_images(self, images: List[Tuple[str, Tuple[str, bytes, str]]]) -> str:
+        texts = []
+        for _, image_tuple in images[:15]:  # Limit to 15 pages for OCR
+            try:
+                _, img_bytes, _ = image_tuple
+                base64_image = base64.b64encode(img_bytes).decode('utf-8')
+                result = self.analyze_single_image(base64_image)
+                text = result['responses'][0]['textAnnotations'][0]['description']
+                texts.append(text)
+            except Exception as e:
+                print(f"Error processing image: {e}")
+        return "\n\n".join(texts)
+
+    def analyze_single_image(self, base64_image: str) -> Dict:
         url = f'https://vision.googleapis.com/v1/images:annotate?key={self.google_vision_api_key}'
         payload = {
             "requests": [
@@ -112,99 +125,6 @@ class RAGPipeline:
             raise Exception(f"Request failed with status code {response.status_code}: {response.text}")
         return response.json()
 
-    def analyze_images(self, images: List[str]) -> str:
-        texts = []
-        for image_path in images[:15]:  # Limit to 15 pages for OCR
-            try:
-                result = self.analyze_single_image(image_path)
-                text = result['responses'][0]['textAnnotations'][0]['description']
-                texts.append(text)
-            except Exception as e:
-                print(f"Error processing image: {e}")
-        return "\n\n".join(texts)
-
-    # def extract_text_from_file(self, file_path: str) -> str:
-    #     _, file_extension = os.path.splitext(file_path)
-        
-    #     if file_extension.lower() == '.pdf':
-    #         # Check if the PDF is digitally native
-    #         with pdfplumber.open(file_path) as pdf:
-    #             first_page = pdf.pages[0]
-    #             print('IN THE EXTRACT TEXT SECTION')
-    #             text = first_page.extract_text() or ""
-    #             print(len(text))
-    #             if len(text) > 100:
-    #                 # PDF is digitally native, use pdfplumber
-    #                 print('DIGITALLY NATIVE')
-    #                 print(len(text))
-    #                 return " ".join([page.extract_text() or "" for page in pdf.pages])
-    #             else:
-    #                 # PDF needs OCR
-    #                 print("*"*50, file_path)
-    #                 images = convert_from_path(file_path)
-    #                 image_paths = []
-    #                 for i, image in enumerate(images[:10]):  # Limit to 10 pages for OCR
-    #                     image_path = f"{file_path}_page_{i}.jpg"
-    #                     image.save(image_path, "JPEG")
-    #                     image_paths.append(image_path)
-    #                 ocr_text = self.analyze_images(image_paths)
-    #                 print(ocr_text)
-    #                 # Clean up temporary image files
-    #                 for image_path in image_paths:
-    #                     os.remove(image_path)
-    #                 return ocr_text
-    #     elif file_extension.lower() in ['.doc', '.docx']:
-    #         doc = docx.Document(file_path)
-    #         return " ".join([paragraph.text for paragraph in doc.paragraphs])
-    #     elif file_extension.lower() in ['.txt']:
-    #         with open(file_path, 'r', encoding='utf-8') as file:
-    #             return file.read()
-    #     else:
-    #         raise ValueError(f"Unsupported file format: {file_extension}")
-
-    def extract_text_from_file(self, file_path: str) -> str:
-        _, file_extension = os.path.splitext(file_path)
-        
-        if file_extension.lower() == '.pdf':
-            try:
-                # Check if the PDF is digitally native
-                with pdfplumber.open(file_path) as pdf:
-                    first_page = pdf.pages[0]
-                    text = first_page.extract_text() or ""
-                    print(len(text))
-                    if len(text) > 100:
-                        # PDF is digitally native, use pdfplumber
-                        return " ".join([page.extract_text() or "" for page in pdf.pages])
-                    else:
-                        # PDF needs OCR
-                        try:
-                            images = convert_from_path(file_path)
-                        except Exception as e:
-                            print(f"Error converting PDF to images: {e}")
-                            print("Make sure Poppler is installed and in your system PATH.")
-                            return ""  # Return empty string if conversion fails
-                        
-                        image_paths = []
-                        for i, image in enumerate(images[:25]):  # Limit to 25 pages for OCR
-                            image_path = f"{file_path}_page_{i}.jpg"
-                            image.save(image_path, "JPEG")
-                            image_paths.append(image_path)
-                        ocr_text = self.analyze_images(image_paths)
-                        # Clean up temporary image files
-                        for image_path in image_paths:
-                            os.remove(image_path)
-                        return ocr_text
-            except Exception as e:
-                print(f"Error processing PDF: {e}")
-                return ""  # Return empty string if PDF processing fails
-        elif file_extension.lower() in ['.doc', '.docx']:
-            doc = docx.Document(file_path)
-            return " ".join([paragraph.text for paragraph in doc.paragraphs])
-        elif file_extension.lower() in ['.txt']:
-            with open(file_path, 'r', encoding='utf-8') as file:
-                return file.read()
-        else:
-            raise ValueError(f"Unsupported file format: {file_extension}")
 
     def create_vector_store(self, text: str) -> FAISS:
         documents = self.text_splitter.create_documents([text])
