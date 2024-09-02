@@ -1,10 +1,10 @@
-import streamlit as st # type: ignore
+import streamlit as st
 import os
 import tempfile
-import pandas as pd # type: ignore
+import pandas as pd
 from typing import List, Tuple
-from rag_pipeline import RAGPipeline  
-from dotenv import load_dotenv # type: ignore
+from rag_pipeline2 import RAGPipeline 
+from dotenv import load_dotenv
 
 load_dotenv()
 
@@ -13,59 +13,62 @@ os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 # Configuration
 PREDIBASE_API_TOKEN = os.getenv("PREDIBASE_TOKEN")
+GOOGLE_VISION_API_KEY = os.getenv("GOOGLE_VISION_API_KEY")
 LLM_MODEL_NAME = "llama-3-1-8b-instruct"
 EMBEDDING_MODEL_NAME = "law-ai/InLegalBERT"
+UPLOAD_FOLDER = "uploaded_files"
+
+# Ensure the upload folder exists
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 PROMPTS = {
     "Document-Type": """
         You are the highly experienced General Counsel of a Fortune 500 company, specializing in legal document analysis.
-        I have provided you with a legal document. Your task is to carefully analyze the content and structure of the document, and classify it into one of the following categories:
+        Your task is to carefully analyze the content and structure of the documents, and classify it into one of the following categories:
 
-        1. Intellectual Property Agreement
-        2. Commercial Contract
-        3. Loan Agreement
-        4. Regulatory Filing
-        5. Non-Disclosure Agreement
-        6. Partnership Agreement
-        7. Legal Opinion
-        8. Authorization Document
-        9. Tax Compliance Document
-        10. Audit Report
-        11. Investment Agreement
-        12. Resolution Plan
-        13. Employee Loan Agreement
-        14. Employment Contract
-
-        
-    """ ,
-
+        * Intellectual Property Agreement
+        * Commercial Contract
+        * Loan Agreement
+        * Regulatory Filing
+        * Non-Disclosure Agreement
+        * Partnership Agreement
+        * Legal Opinion
+        * Authorization Document
+        * Tax Compliance Document
+        * Audit Report
+        * Investment Agreement
+        * Resolution Plan
+        * Employee Loan Agreement
+        * Employment Contract
+    """,
+    
     "Confidentiality-Level": """
-            You are the highly experienced General Counsel of a Fortune 500 company, responsible for handling sensitive legal documents.
-            I have provided you with a legal document. Your task is to carefully analyze the content and context of the document, and determine its appropriate confidentiality level, which can be one of the following:
+        You are the highly experienced General Counsel of a Fortune 500 company, responsible for handling sensitive legal documents.
+        I have provided you with a legal document. Your task is to carefully analyze the content and context of the document, and determine its appropriate confidentiality level, which can be one of the following:
 
-            1. Public
-            2. Confidential
-            3. Highly Confidential
-        """,
+        1. Public
+        2. Confidential
+        3. Highly Confidential
+    """,
 
+    "Summary": """
+        As the General Counsel of a Fortune 500 company, your role involves distilling complex legal documents into concise and accurate summaries.
+    """
 }
 
-
-# Define the fields as a global variable
 ANALYSIS_FIELDS: List[Tuple[str, str]] = [
-    ("Document-Type", "Provide your classification for the provided document as a single word answer, without any additional explanation."),
+    ("Document-Type", "Classify the provided document in one of the categories, without any additional explanation."),
     ("Confidentiality-Level", "Provide your assessment of the confidentiality level for the provided document as a single word answer, without any additional explanation."),
-    ("Summary", "provide a very short summary"),
+    ("Summary", "Given the document provided, generate a brief summary that highlights the key points, main purpose, and any crucial information that would be important for a quick understanding of the document's content and implications. Keep the summary precise and to the point."),
 ]
 
 def process_document(file, rag_pipeline: RAGPipeline, fields: List[Tuple[str, str]]):
-    with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(file.name)[1]) as temp_file:
-        temp_file.write(file.getvalue())
-        temp_file_path = temp_file.name
-
     try:
-        # Extract text from file
-        text = rag_pipeline.extract_text_from_file(temp_file_path)
+        # Save the file with timestamp
+        file_path = rag_pipeline.save_file_with_timestamp(file, UPLOAD_FOLDER)
+        
+        # Extract text from file (now includes OCR functionality)
+        text = rag_pipeline.extract_text_from_file(file_path)
         
         # Create vector store for this file
         vector_store = rag_pipeline.create_vector_store(text)
@@ -85,9 +88,6 @@ def process_document(file, rag_pipeline: RAGPipeline, fields: List[Tuple[str, st
     except Exception as e:
         st.error(f"Error processing {file.name}: {str(e)}")
         return None
-    
-    finally:
-        os.unlink(temp_file_path)
 
 def display_document_card(doc, fields: List[Tuple[str, str]]):
     st.markdown(f"### {doc['File Name']}")
@@ -96,10 +96,10 @@ def display_document_card(doc, fields: List[Tuple[str, str]]):
     for i in range(0, len(fields) - 1, 2):
         col1, col2 = st.columns(2)
         with col1:
-            st.markdown(f"**{fields[i][0]}:** {doc[fields[i][0]]}")
+            st.markdown(f"*{fields[i][0]}:* {doc[fields[i][0]]}")
         if i + 1 < len(fields) - 1:
             with col2:
-                st.markdown(f"**{fields[i+1][0]}:** {doc[fields[i+1][0]]}")
+                st.markdown(f"*{fields[i+1][0]}:* {doc[fields[i+1][0]]}")
     
     # Add an expander for the last field
     last_field = fields[-1]
@@ -121,7 +121,7 @@ def main():
         # Initialize RAG pipeline
         @st.cache_resource
         def load_rag_pipeline():
-            return RAGPipeline(EMBEDDING_MODEL_NAME, LLM_MODEL_NAME, PREDIBASE_API_TOKEN)
+            return RAGPipeline(EMBEDDING_MODEL_NAME, LLM_MODEL_NAME, PREDIBASE_API_TOKEN, GOOGLE_VISION_API_KEY)
 
         rag_pipeline = load_rag_pipeline()
         st.success("All systems online!")
