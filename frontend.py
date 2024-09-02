@@ -51,7 +51,7 @@ PROMPTS = {
     """,
 
     "Summary": """
-        As the General Counsel of a Fortune 500 company, your role involves distilling complex legal documents into concise and accurate summaries.
+        As the General Counsel of a Fortune 500 company, your role involves distilling complex legal documents into accurate summaries.
     """
 }
 
