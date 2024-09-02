@@ -4,7 +4,7 @@ import tempfile
 import pandas as pd # type: ignore
 from typing import List, Tuple
 from rag_pipeline import RAGPipeline  
-from dotenv import load_dotenv
+from dotenv import load_dotenv # type: ignore
 
 load_dotenv()
 
@@ -12,17 +12,50 @@ load_dotenv()
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 # Configuration
-PREDIBASE_API_TOKEN = os.getenv("PREDIBASE_TOKEN", "")
+PREDIBASE_API_TOKEN = os.getenv("PREDIBASE_TOKEN")
 LLM_MODEL_NAME = "llama-3-1-8b-instruct"
 EMBEDDING_MODEL_NAME = "law-ai/InLegalBERT"
 
+PROMPTS = {
+    "Document-Type": """
+        You are the highly experienced General Counsel of a Fortune 500 company, specializing in legal document analysis.
+        I have provided you with a legal document. Your task is to carefully analyze the content and structure of the document, and classify it into one of the following categories:
+
+        1. Intellectual Property Agreement
+        2. Commercial Contract
+        3. Loan Agreement
+        4. Regulatory Filing
+        5. Non-Disclosure Agreement
+        6. Partnership Agreement
+        7. Legal Opinion
+        8. Authorization Document
+        9. Tax Compliance Document
+        10. Audit Report
+        11. Investment Agreement
+        12. Resolution Plan
+        13. Employee Loan Agreement
+        14. Employment Contract
+
+        
+    """ ,
+
+    "Confidentiality-Level": """
+            You are the highly experienced General Counsel of a Fortune 500 company, responsible for handling sensitive legal documents.
+            I have provided you with a legal document. Your task is to carefully analyze the content and context of the document, and determine its appropriate confidentiality level, which can be one of the following:
+
+            1. Public
+            2. Confidential
+            3. Highly Confidential
+        """,
+
+}
+
+
 # Define the fields as a global variable
 ANALYSIS_FIELDS: List[Tuple[str, str]] = [
-    ("Document Type", "What type of document is this, answer in one word"),
-    ("Confidentiality Level", "What is the confidentiality level of this legal document, in one word?"),
-    ("Parties", "Can you tell me the parties involved"),
-    ("Severance", "How many pages are in there"),
-    ("Summary", "Provide a summary of this legal document, in short"),
+    ("Document-Type", "Provide your classification for the provided document as a single word answer, without any additional explanation."),
+    ("Confidentiality-Level", "Provide your assessment of the confidentiality level for the provided document as a single word answer, without any additional explanation."),
+    ("Summary", "provide a very short summary"),
 ]
 
 def process_document(file, rag_pipeline: RAGPipeline, fields: List[Tuple[str, str]]):
@@ -41,11 +74,9 @@ def process_document(file, rag_pipeline: RAGPipeline, fields: List[Tuple[str, st
         rag_chain = rag_pipeline.create_rag_chain(vector_store)
         
         file_results = {"File Name": file.name}
-        for field_name, query in fields:
-            prompt = rag_pipeline.generate_prompt(
-                "You are an AI assistant specialized in analyzing legal and business documents.",
-                query
-            )
+        for field_name, query_key in fields:
+            system_message = PROMPTS.get(field_name, "You are the highly experienced General Counsel of a Fortune 500 company.")
+            prompt = rag_pipeline.generate_prompt(system_message, query_key)
             result = rag_pipeline.run_rag_pipeline(rag_chain, prompt)
             file_results[field_name] = result['result']
         
@@ -124,7 +155,7 @@ def main():
                 # Create a DataFrame for CSV download
                 if results:
                     df = pd.DataFrame(results)
-                    csv = df.to_csv(index=False)
+                    csv = df.to_csv(index=True)
                     st.download_button(
                         label="📥 Download results as CSV",
                         data=csv,
