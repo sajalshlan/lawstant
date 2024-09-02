@@ -58,7 +58,7 @@ PROMPTS = {
 ANALYSIS_FIELDS: List[Tuple[str, str]] = [
     ("Document-Type", "Classify the provided document in one of the categories, without any additional explanation."),
     ("Confidentiality-Level", "Provide your assessment of the confidentiality level for the provided document as a single word answer, without any additional explanation."),
-    ("Summary", "Given the document provided, generate a brief summary that highlights the key points, main purpose, and any crucial information that would be important for a quick understanding of the document's content and implications. Keep the summary precise and to the point."),
+    ("Summary", "Given the document provided, generate a brief summary that highlights the key points and the main purpose that would be important for a quick understanding of the document's content and implications. Keep the summary to the point."),
 ]
 
 def extract_text_from_file(file, rag_pipeline: RAGPipeline):
