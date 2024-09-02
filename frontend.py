@@ -150,8 +150,8 @@ def main():
     col1, col2, col3 = st.columns([1, 2, 1])
     
     with col2:  # This is our main content area
-        st.title("Better Call Saul")
-        st.markdown("Upload your legal documents for quick analysis and summary. Supports pdf, docx, doc, txt")
+        st.title("Order! Order!")
+        st.markdown("Upload your legal documents for quick analysis and summary. Supports pdf, docx, doc, txt. Max Page Limit - Scanned PDFs: 25; Digital PDfs: None")
 
         # Initialize RAG pipeline
         @st.cache_resource
