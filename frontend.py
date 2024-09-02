@@ -3,7 +3,7 @@ import os
 import tempfile
 import pandas as pd
 from typing import List, Tuple
-from rag_pipeline2 import RAGPipeline 
+from rag_pipeline import RAGPipeline 
 from dotenv import load_dotenv
 
 load_dotenv()
