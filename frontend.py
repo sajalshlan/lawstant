@@ -1,10 +1,13 @@
 import streamlit as st
 import os
-import tempfile
 import pandas as pd
 from typing import List, Tuple
 from rag_pipeline import RAGPipeline 
 from dotenv import load_dotenv
+import io
+from pdf2image import convert_from_bytes
+import docx
+import pdfplumber
 
 load_dotenv()
 
@@ -16,10 +19,6 @@ PREDIBASE_API_TOKEN = os.getenv("PREDIBASE_TOKEN")
 GOOGLE_VISION_API_KEY = os.getenv("GOOGLE_VISION_API_KEY")
 LLM_MODEL_NAME = "llama-3-1-8b-instruct"
 EMBEDDING_MODEL_NAME = "law-ai/InLegalBERT"
-UPLOAD_FOLDER = "uploaded_files"
-
-# Ensure the upload folder exists
-os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 PROMPTS = {
     "Document-Type": """
@@ -62,13 +61,49 @@ ANALYSIS_FIELDS: List[Tuple[str, str]] = [
     ("Summary", "Given the document provided, generate a brief summary that highlights the key points, main purpose, and any crucial information that would be important for a quick understanding of the document's content and implications. Keep the summary precise and to the point."),
 ]
 
+def extract_text_from_file(file, rag_pipeline: RAGPipeline):
+    file_extension = os.path.splitext(file.name)[1].lower()
+    
+    if file_extension == '.pdf':
+        try:
+            # Check if the PDF is digitally native
+            pdf_content = io.BytesIO(file.read())
+            file.seek(0)  # Reset file pointer
+            
+            
+            with pdfplumber.open(pdf_content) as pdf:
+                first_page = pdf.pages[0]
+                text = first_page.extract_text() or ""
+                if len(text) > 100:
+                    # PDF is digitally native, use pdfplumber
+                    return " ".join([page.extract_text() or "" for page in pdf.pages])
+                else:
+                    # PDF needs OCR
+                    images = convert_from_bytes(file.read())
+                    image_files = []
+                    for i, image in enumerate(images[:25]):  # Limit to 25 pages for OCR
+                        img_byte_arr = io.BytesIO()
+                        image.save(img_byte_arr, format='JPEG')
+                        img_byte_arr = img_byte_arr.getvalue()
+                        image_files.append(('image', ('image.jpg', img_byte_arr, 'image/jpeg')))
+                    
+                    ocr_text = rag_pipeline.analyze_images(image_files)
+                    return ocr_text
+        except Exception as e:
+            st.error(f"Error processing PDF: {e}")
+            return ""
+    elif file_extension in ['.doc', '.docx']:
+        doc = docx.Document(io.BytesIO(file.read()))
+        return " ".join([paragraph.text for paragraph in doc.paragraphs])
+    elif file_extension in ['.txt']:
+        return file.read().decode('utf-8')
+    else:
+        raise ValueError(f"Unsupported file format: {file_extension}")
+
 def process_document(file, rag_pipeline: RAGPipeline, fields: List[Tuple[str, str]]):
     try:
-        # Save the file with timestamp
-        file_path = rag_pipeline.save_file_with_timestamp(file, UPLOAD_FOLDER)
-        
         # Extract text from file (now includes OCR functionality)
-        text = rag_pipeline.extract_text_from_file(file_path)
+        text = extract_text_from_file(file, rag_pipeline)
         
         # Create vector store for this file
         vector_store = rag_pipeline.create_vector_store(text)
@@ -127,7 +162,7 @@ def main():
         st.success("All systems online!")
 
         # File uploader
-        uploaded_files = st.file_uploader("Upload documents", accept_multiple_files=True, type=['pdf', 'docx', 'txt'])
+        uploaded_files = st.file_uploader("Upload documents", accept_multiple_files=True, type=['pdf', 'docx', 'doc', 'txt'])
 
         if uploaded_files:
             if st.button("Process Documents"):
