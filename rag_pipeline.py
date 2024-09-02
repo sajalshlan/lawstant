@@ -98,7 +98,7 @@ class RAGPipeline:
         )
 
     @staticmethod
-    def generate_prompt(system_message: str, query: str) -> str:
+    def generate_prompt(self, system_message: str, query: str = "") -> str:
         return f"""
         <|begin_of_text|><|start_header_id|>system<|end_header_id|>
         {system_message}
