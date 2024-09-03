@@ -151,7 +151,7 @@ def main():
     
     with col2:  # This is our main content area
         st.title("Order! Order!")
-        st.markdown("Upload your legal documents for quick analysis and summary. Supports pdf, docx, doc, txt. Max Page Limit - Scanned PDFs: 25; Digital PDfs: None")
+        st.markdown("Upload your legal documents for quick analysis and summary. Supports pdf, docx, doc, txt. Max Page Limit on Documents - Scanned: 25; Digital: None")
 
         # Initialize RAG pipeline
         @st.cache_resource
