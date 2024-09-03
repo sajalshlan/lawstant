@@ -144,7 +144,7 @@ def display_document_card(doc, fields: List[Tuple[str, str]]):
     st.markdown("---")
 
 def main():
-    st.set_page_config(page_title="Better Call Saul", layout="wide")
+    st.set_page_config(page_title="Burden of Proof", layout="wide")
     
     # Create a centered column with reduced width
     col1, col2, col3 = st.columns([1, 2, 1])
