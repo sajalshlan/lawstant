@@ -2,7 +2,7 @@ import streamlit as st
 import os
 import pandas as pd
 from typing import List, Tuple
-from rag_pipeline3 import RAGPipeline 
+from rag_pipeline import RAGPipeline 
 from dotenv import load_dotenv
 import io
 from pdf2image import convert_from_bytes
